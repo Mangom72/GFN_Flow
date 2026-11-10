@@ -741,17 +741,17 @@ class Picker:
                 self.render()
                 return
             # Auto-input only when the detected game itself is focused.
-            first_action = self.preferences.data['first_f9']
-            if auto and first_action != 'picker' and self.game and active.address == self.game[0].address and not self.visual.active:
+            first_login = self.preferences.data['first_f9']
+            if auto and first_login and self.game and active.address == self.game[0].address and not self.visual.active:
                 if self.library.auto_for(active.title) and self.sessions.claim_first(self.game):
                     self.persist()
-                    self.run_login(full=first_action == 'full')
+                    self.run_login(full=False)
                     return
             if was_visible and auto:
                 self.hide()
                 return
             if self.game:
-                if first_action == 'picker':
+                if not first_login:
                     self.message = 'Choose a macro to run for this game.'
                 elif not self.library.auto_for(self.game[0].title):
                     self.message = 'No first-F9 login is enabled for this game. Choose a macro or open the library.'

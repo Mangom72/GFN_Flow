@@ -1,5 +1,5 @@
 """Settings stay inside the same popup and preserve the page beneath them."""
-from preferences import F9_SCOPES, FIRST_F9
+from preferences import F9_SCOPES
 
 
 class SettingsPage:
@@ -55,15 +55,13 @@ class SettingsPage:
         section.set_margin_top(8)
         content.pack_start(section, False, False, 0)
         self.f9_scope = Gtk.ComboBoxText()
-        self.first_f9 = Gtk.ComboBoxText()
-        for key, control, choices, title in (
-            ('f9_scope', self.f9_scope, F9_SCOPES, 'Open the picker'),
-            ('first_f9', self.first_f9, FIRST_F9, 'First F9 for each game session'),
-        ):
-            for identity, label in choices.items():
-                control.append(identity, label)
-            control.set_active_id(picker.preferences.data[key])
-            row(title, control, vertical=True)
+        for identity, label in F9_SCOPES.items():
+            self.f9_scope.append(identity, label)
+        self.f9_scope.set_active_id(picker.preferences.data['f9_scope'])
+        row('Open the picker', self.f9_scope, vertical=True)
+        self.first_f9 = Gtk.Switch()
+        self.first_f9.set_active(picker.preferences.data['first_f9'])
+        row('Run login macro on first F9', self.first_f9)
         content.pack_start(picker.label('Login runs only while its game is focused.', 'muted'), False, False, 0)
         self.reopen_after_macro = Gtk.Switch()
         self.reopen_after_macro.set_active(picker.preferences.data['reopen_after_macro'])

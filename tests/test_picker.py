@@ -132,18 +132,18 @@ class PickerTests(unittest.TestCase):
             self.picker.library.move_game(self.profile.name, from_blacklist=False)
             self.assertFalse(self.picker.can_open_on_f9(browser))
 
-    def test_first_f9_can_open_picker_or_run_full_login(self):
+    def test_first_f9_switch_opens_picker_or_runs_login(self):
         with patch.object(login, 'active_window', return_value=self.active), \
              patch.object(self.picker, 'run_login') as run:
-            self.picker.preferences.data['first_f9'] = 'picker'
+            self.picker.preferences.data['first_f9'] = False
             self.picker.open()
             self.assertTrue(self.picker.window.get_visible())
             self.assertFalse(self.picker.sessions.attempted)
             run.assert_not_called()
             self.picker.hide()
-            self.picker.preferences.data['first_f9'] = 'full'
+            self.picker.preferences.data['first_f9'] = True
             self.picker.open()
-            run.assert_called_once_with(full=True)
+            run.assert_called_once_with(full=False)
 
     def test_first_f9_login_stays_hidden_until_next_f9(self):
         # Drive the real F9/run/finish path without injecting game input.

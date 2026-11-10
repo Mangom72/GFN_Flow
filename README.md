@@ -67,7 +67,7 @@ Open **Settings → F9 behavior** to choose when F9 can open the picker.
 | When GeForce NOW is focused | The launcher or a game is the active window |
 | When a GFN game is running | A game session is detected and allowed by the blacklist, even in the background |
 
-Set **First F9 for each game session** to run the enabled login macro, run the full sequence past its login-only limit, or open the picker without running a macro. Login input still requires focus on the matching game. **Reopen picker after normal macros** controls what happens after successful playback. F9 still closes an open picker or stops playback, and the app menu can open it directly.
+Turn on **Run login macro on first F9** to attempt the game's enabled login macro once per session while the game is focused. Turn it off to open the picker without logging in. **Reopen picker after normal macros** controls what happens after successful playback. F9 can still close an open picker or stop playback, and the app menu can open it directly.
 
 > [!NOTE]
 > Credentials registered in **Login Credentials** are stored in Windows Credential Manager or Linux Secret Service. Ordinary text actions are included in library exports, so use the saved credential actions for account names and passwords.

@@ -17,6 +17,13 @@ from ui_motion import Motion
 
 
 class PreferenceTests(unittest.TestCase):
+    def test_migrates_first_f9_dropdown_values_to_switch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'settings.json'
+            for old, expected in [('picker', False), ('login', True), ('full', True)]:
+                path.write_text(json.dumps({'first_f9': old}))
+                self.assertIs(Preferences(path).data['first_f9'], expected)
+
     def test_persistence_validation_and_private_permissions(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'settings.json'
@@ -299,10 +306,10 @@ class SettingsUiTests(unittest.TestCase):
     def test_f9_controls_persist_and_failed_save_restores_scope(self):
         page = self.picker.settings_page
         page.f9_scope.set_active_id('game')
-        page.first_f9.set_active_id('full')
+        page.first_f9.set_active(False)
         page.reopen_after_macro.set_active(False)
         saved = Preferences(self.picker.preferences.path).data
-        self.assertEqual((saved['f9_scope'], saved['first_f9'], saved['reopen_after_macro']), ('game', 'full', False))
+        self.assertEqual((saved['f9_scope'], saved['first_f9'], saved['reopen_after_macro']), ('game', False, False))
         with patch.object(self.picker.preferences, 'set', side_effect=OSError('write failed')):
             page.f9_scope.set_active_id('focused')
         self.assertEqual(page.f9_scope.get_active_id(), 'game')
