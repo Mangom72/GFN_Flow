@@ -1,0 +1,13 @@
+[Unit]
+Description=GeForce NOW F9 macro picker and game detector
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/macro-studio daemon
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

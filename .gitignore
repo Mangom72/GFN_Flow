@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.log
+*.ini
+*.conf
+*.zip
+*.tmp
+library.json*
+history.json
+profiles.json
+settings.json
+ui-previews/
+preview-*.png
+assets/fonts/*.ttf

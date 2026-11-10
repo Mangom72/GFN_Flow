@@ -1,0 +1,8 @@
+[Unit]
+Description=GeForce NOW mouse keepalive
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u %h/.local/bin/gfn-anti-afk.py
+TimeoutStopSec=5

@@ -1,0 +1,25 @@
+name: Linux GTK smoke test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-gtk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GTK test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth python3-gi gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 adwaita-icon-theme librsvg2-common python3-pil python3-numpy linux-libc-dev
+      - name: Check installer syntax and run offscreen GTK tests
+        env:
+          PYTHONPATH: .:tests
+        run: |
+          sh -n Install-Linux.sh
+          xvfb-run -a python3 -m unittest test_manager test_sessions test_game_catalog test_visual_ui test_inputs test_library_engine

@@ -1,0 +1,52 @@
+#!/usr/bin/python3
+"""Manual and Macro Studio control for the GFN mouse keepalive."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+UNIT = "gfn-anti-afk.service"
+STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "gfn-autologin-linux/anti-afk.json"
+
+def active():
+    return subprocess.run(["systemctl", "--user", "is-active", "--quiet", UNIT], timeout=5).returncode == 0
+
+def status():
+    try:
+        info = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        info = {}
+    info["active"] = active()
+    if not info["active"]:
+        info.update(next_nudge=0, error=False, message="Anti-AFK is off")
+    return info
+
+def main():
+    action = sys.argv[1] if len(sys.argv) > 1 else "toggle"
+    if action == "status":
+        print(json.dumps(status()))
+        return 0
+    if action not in ("toggle", "start", "stop"):
+        print("Usage: gfn-anti-afk [toggle|start|stop|status]", file=sys.stderr)
+        return 2
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    with (runtime / "gfn-anti-afk-toggle.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        turn_on = not active() if action == "toggle" else action == "start"
+        if turn_on:
+            clients = json.loads(subprocess.check_output(["hyprctl", "-j", "clients"], text=True, timeout=5))
+            if not any(c.get("class", "").lower() == "geforcenow" and c.get("mapped") for c in clients):
+                subprocess.run(["notify-send", "GFN Anti-AFK", "Open GeForce NOW before turning on anti-AFK."], timeout=5)
+                return 1
+        subprocess.run(["systemctl", "--user", "start" if turn_on else "stop", UNIT], check=True, timeout=10)
+        subprocess.run(["notify-send", "GFN Anti-AFK", "On · mouse moves every 3 minutes" if turn_on else "Off", "-t", "2500"], timeout=5)
+    return 0
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)
