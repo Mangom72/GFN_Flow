@@ -22,4 +22,4 @@ jobs:
           PYTHONPATH: .:tests
         run: |
           sh -n Install-Linux.sh
-          xvfb-run -a python3 -m unittest test_manager test_sessions test_game_catalog test_visual_ui test_inputs test_library_engine
+          xvfb-run -a python3 -m unittest test_manager test_sessions test_game_catalog test_visual_ui test_inputs test_library_engine test_picker test_settings.PreferenceTests test_settings.SettingsUiTests.test_f9_controls_persist_and_failed_save_restores_scope

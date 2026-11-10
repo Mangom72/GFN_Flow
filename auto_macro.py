@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 
-from detection import Sessions, login, session_key, candidates, game_name
+from detection import Sessions, login, session_key, candidates, game_name, gfn_app_running, is_gfn_window
 from macro_library import MacroLibrary, TYPES
 from macro_engine import MacroRunner, Cancelled
 from ui_theme import CSS, TOKENS, category_markup, macro_markup
@@ -141,11 +141,12 @@ class Picker:
         except (OSError, ValueError):
             attempted = []
         self.sessions = Sessions(attempted)
+        self.detected_windows = ()
         self.game = None
         self.busy = False
         from visual_integration import VisualIntegration
         self.visual = VisualIntegration(self)
-        self.message = 'First F9 per game runs auto login. Later presses open this list.'
+        self.message = 'Open a GFN game to run its macros, or open the library to create one.'
         self.window = Gtk.OffscreenWindow() if preview else Gtk.Window(title='Macro Studio')
         self.window.set_default_size(width, -1)
         self.window.set_resizable(False)
@@ -394,6 +395,7 @@ class Picker:
         temporary.replace(STATE / 'sessions.json')
 
     def scan(self):
+        self.detected_windows = ()
         try:
             self.settings, self.legacy_profiles = login.load_profiles()
             self.library.source_profiles = self.legacy_profiles
@@ -412,6 +414,7 @@ class Picker:
                     self.manager.game_blacklist.refresh()
             previous = set(self.sessions.attempted)
             self.sessions.update(windows, self.profiles, blocked=self.library.window_is_blocked)
+            self.detected_windows = windows
             self.visual.reconcile()
             if previous != self.sessions.attempted:
                 self.persist()
@@ -655,6 +658,22 @@ class Picker:
         self.hide()
         return True
 
+    def can_open_on_f9(self, active):
+        scope = self.preferences.data['f9_scope']
+        if scope == 'always':
+            return True
+        if scope == 'focused':
+            return is_gfn_window(active)
+        if scope == 'running':
+            return is_gfn_window(active) or gfn_app_running(self.detected_windows)
+        if self.detected_windows and any(is_gfn_window(window) for window, _ in self.sessions.games.values()):
+            return True
+        if WINDOWS:
+            windows = login.all_windows(include_minimized=True)
+            return any(is_gfn_window(window) and not self.library.window_is_blocked(window, profile)
+                       for window, profile in candidates(windows, self.profiles).values())
+        return False
+
     def open(self, auto=True):
         if auto and self.restart_confirmation is not None:
             self.hide()
@@ -679,8 +698,14 @@ class Picker:
             self.hide()  # F9 returns input to the game; a later F9 starts capture.
             return
         self.scan()
+        f9_allowed = not auto or self.preferences.data['f9_scope'] == 'always'
         try:
             active = login.active_window()
+            f9_allowed = f9_allowed or self.can_open_on_f9(active)
+            if not f9_allowed:
+                if was_visible:
+                    self.hide()
+                return
             self.game = self.sessions.select(active)
             if auto and self.visual.owns(self.game) and not was_visible:
                 self.visual.pause()
@@ -716,20 +741,24 @@ class Picker:
                 self.render()
                 return
             # Auto-input only when the detected game itself is focused.
-            if auto and self.game and active.address == self.game[0].address and not self.visual.active:
+            first_action = self.preferences.data['first_f9']
+            if auto and first_action != 'picker' and self.game and active.address == self.game[0].address and not self.visual.active:
                 if self.library.auto_for(active.title) and self.sessions.claim_first(self.game):
                     self.persist()
-                    self.run_login(full=False)
+                    self.run_login(full=first_action == 'full')
                     return
             if was_visible and auto:
                 self.hide()
                 return
             if self.game:
-                self.message = ('Auto login already attempted. You can rerun it below.'
-                                if session_key(*self.game) in self.sessions.attempted
-                                else 'Focus this game and press F9 to run its first auto login.')
-                if not self.library.auto_for(self.game[0].title):
+                if first_action == 'picker':
+                    self.message = 'Choose a macro to run for this game.'
+                elif not self.library.auto_for(self.game[0].title):
                     self.message = 'No first-F9 login is enabled for this game. Choose a macro or open the library.'
+                else:
+                    self.message = ('Auto login already attempted. You can rerun it below.'
+                                    if session_key(*self.game) in self.sessions.attempted
+                                    else 'Focus this game and press F9 to run its first auto login.')
                 if self.visual.owns(self.game):
                     self.message = 'Visual workflow paused. Open Visual Workflows in Macro Studio to resume or stop.'
             elif login.is_gfn_idle(active):
@@ -741,6 +770,8 @@ class Picker:
                 self.hide()
                 return
             self.message = str(exc)
+            if not f9_allowed:
+                return
         if self.stack.get_visible_child_name() == 'settings':
             self.show_settings()
         elif self.manager and self.stack.get_visible_child_name() == 'manager':
@@ -1191,7 +1222,7 @@ class Picker:
         for button in self.tool_buttons.values():
             tools.pack_start(button, False, False, 0)
         self.status_button = self.help_button('Status and shortcuts', lambda: self.message +
-            '\n\nF9 · open / stop\nF10 · VPN on / off\n↑ ↓ · select   Enter · run   Esc · back\nTab · next control   Ctrl+L · Library\nGuide · open   D-pad · navigate   A · select   B · back\nLB / RB · previous / next control\nFirst F9 per game runs its enabled login.')
+            '\n\nF9 · open / stop\nF10 · VPN on / off\n↑ ↓ · select   Enter · run   Esc · back\nTab · next control   Ctrl+L · Library\nGuide · open   D-pad · navigate   A · select   B · back\nLB / RB · previous / next control\nF9 behavior can be changed in Settings.')
         self.status_button.set_tooltip_text(self.message + '\nStatus and shortcuts')
         if self.message.startswith(('Action stopped:', 'Detection unavailable:')):
             self.status_button.get_style_context().add_class('danger')
@@ -1408,7 +1439,7 @@ class Picker:
                 if not self.preview:
                     self.library.record(macro['id'], macro['name'], status, time.monotonic() - start, runner.completed)
         self.launch(work, f'{macro["name"]} completed. F9 now opens the list.',
-                    reopen_on_success=macro["kind"] != "login")
+                    reopen_on_success=macro['kind'] != 'login' and self.preferences.data['reopen_after_macro'])
 
     def run_command(self, argv, success, target=False, idle=False, vpn=False):
         game = self.game

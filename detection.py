@@ -44,6 +44,22 @@ def game_name(title):
     return LEGACY_GAME_NAMES.get(name.casefold(), name)
 
 
+def is_gfn_window(window):
+    if not window.address:
+        return False
+    if window.window_class.casefold() in ('geforcenow', 'geforce now', 'gfn'):
+        return True
+    title = window.title.strip()
+    return bool(login.GFN_APP_CLASSES.search(window.window_class) and
+                re.search(r'^geforce\s*now\b|[-–—]\s*geforce\s*now$', title, re.I))
+
+
+def gfn_app_running(windows):
+    if any(is_gfn_window(window) for window in windows):
+        return True
+    return sys.platform == 'win32' and windows_input.gfn_process_running()
+
+
 def candidates(windows, profiles):
     result = {}
     for window in windows:

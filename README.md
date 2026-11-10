@@ -52,9 +52,22 @@ Existing `~/.config/auto-macro` libraries and legacy GFN login profiles are read
 
 1. Open a game in the GeForce NOW app so GFN Flow can detect it. Open the library and use **Add macro** to create a normal or login macro for that game.
 2. Build or record the action sequence and save it. For a login macro, use the saved-account and saved-password actions and register the account in **Login Credentials**. Enable first-F9 login in the editor if you want it to run automatically on that keypress.
-3. Focus the game and press **F9**. If first-F9 login is enabled, the app attempts it once per game session. Otherwise, F9 opens the picker so you can select a macro. Press F9 again during playback to stop it.
+3. Focus the game and press **F9**. By default, the app attempts the enabled login macro once per game session. Later presses open the picker. Press F9 again during playback to stop it.
 
 In Macro Studio, **Ctrl+1–5** opens Library, History, Visual Workflows, Login Credentials, or Blacklist. **Esc** goes back. Deleting a detected game from **Blacklist** stops detection and keeps its macros. **Unblock and restore** puts the game back immediately. **Remove only** lets detection add it again when the game is next seen.
+
+## Set F9 behavior
+
+Open **Settings → F9 behavior** to choose when F9 can open the picker.
+
+| Open the picker | When F9 can open it |
+| --- | --- |
+| Always | Even when GeForce NOW is closed |
+| When GeForce NOW is running | The launcher or a game is running, including in the background |
+| When GeForce NOW is focused | The launcher or a game is the active window |
+| When a GFN game is running | A game session is detected and allowed by the blacklist, even in the background |
+
+Set **First F9 for each game session** to run the enabled login macro, run the full sequence past its login-only limit, or open the picker without running a macro. Login input still requires focus on the matching game. **Reopen picker after normal macros** controls what happens after successful playback. F9 still closes an open picker or stops playback, and the app menu can open it directly.
 
 > [!NOTE]
 > Credentials registered in **Login Credentials** are stored in Windows Credential Manager or Linux Secret Service. Ordinary text actions are included in library exports, so use the saved credential actions for account names and passwords.

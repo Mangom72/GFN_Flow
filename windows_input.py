@@ -16,6 +16,7 @@ kernel = c.WinDLL('kernel32', use_last_error=True)
 advapi = c.WinDLL('advapi32', use_last_error=True)
 GFN_DIR = Path(os.environ['LOCALAPPDATA']) / 'NVIDIA Corporation/GeForceNOW/CEF'
 GFN_EXE = GFN_DIR / 'GeForceNOW.exe'
+GFN_IMAGES = (GFN_EXE, GFN_DIR / 'GeForceNOWStreamer.exe')
 
 
 def api(library, name, result, *args):
@@ -63,7 +64,7 @@ def as_window(hwnd):
     if not client_rect(hwnd, c.byref(rect)) or not to_screen(hwnd, c.byref(origin)):
         return login.Window(address, title.value, '', 0, 0, 0, 0)
     image = process_image(pid.value)
-    trusted = image in (GFN_EXE, GFN_DIR / 'GeForceNOWStreamer.exe')
+    trusted = image in GFN_IMAGES
     return login.Window(address, title.value, 'geforcenow' if trusted else '',
                         origin.x, origin.y, rect.right, rect.bottom)
 
@@ -72,13 +73,24 @@ def active_window():
     return as_window(foreground())
 
 
-def all_windows():
+def gfn_process_running():
+    enumerate_pids = api(kernel, 'K32EnumProcesses', w.BOOL, c.POINTER(w.DWORD), w.DWORD, c.POINTER(w.DWORD))
+    pids = (w.DWORD * 1024)()
+    used = w.DWORD()
+    while enumerate_pids(pids, c.sizeof(pids), c.byref(used)):
+        if used.value < c.sizeof(pids):
+            return any(process_image(pid) in GFN_IMAGES for pid in pids[:used.value // c.sizeof(w.DWORD)] if pid)
+        pids = (w.DWORD * (len(pids) * 2))()
+    return False
+
+
+def all_windows(include_minimized=False):
     windows = []
     callback_type = c.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
 
     @callback_type
     def append(hwnd, _):
-        if visible(hwnd) and not iconic(hwnd):
+        if visible(hwnd) and (include_minimized or not iconic(hwnd)):
             item = as_window(hwnd)
             if item.window_class:
                 windows.append(item)

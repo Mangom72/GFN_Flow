@@ -2,6 +2,7 @@
 import json
 import gc
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -23,8 +24,9 @@ class PreferenceTests(unittest.TestCase):
             self.assertEqual(preferences.data, DEFAULTS)
             for key, value in [('language', 'ko'), ('animations', False), ('size', 'compact')]:
                 preferences.set(key, value)
-            self.assertEqual(Preferences(path).data, dict(language='ko', animations=False, size='compact'))
-            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(Preferences(path).data, {**DEFAULTS, 'language': 'ko', 'animations': False, 'size': 'compact'})
+            if sys.platform != 'win32':
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
             before = path.read_text()
             for key, value in [('language', 'xx'), ('animations', 1), ('size', []), ('password', 'anything')]:
                 with self.assertRaises(ValueError):
@@ -213,10 +215,13 @@ class SettingsUiTests(unittest.TestCase):
         report = vpn_fixture()
         field = self.manager.fields['name']
         self.picker.game = (login.Window('game', 'GeForce NOW Demo', 'GeForceNOW', 0, 0, 800, 600), self.profile)
-        with patch.object(self.picker, 'preview', False), \
+        windows = sys.platform == 'win32'
+        backend = 'windows_vpn_scan.scan' if windows else 'vpn_servers.optimize'
+        status = patch('windows_vpn.status', return_value=False) if windows else patch('auto_macro.WINDOWS', False)
+        with status, patch.object(self.picker, 'preview', False), \
              patch.object(self.picker, 'refresh_tool_status'), \
              patch('auto_macro.threading.Thread') as thread, \
-             patch('vpn_servers.optimize', return_value=report) as search:
+             patch(backend, return_value=report) as search:
             self.picker.start_vpn_search()
             self.assertTrue(self.picker.vpn_testing)
             thread.return_value.start.assert_called_once()
@@ -224,8 +229,8 @@ class SettingsUiTests(unittest.TestCase):
             self.picker.hide()
             thread.call_args.kwargs['target']()
             self.pump()
-            self.assertIs(search.call_args.args[2], self.picker.vpn_cancel)
-            self.assertEqual(search.call_args.kwargs, {'allow_in_game': True})
+            self.assertIs(search.call_args.args[-1], self.picker.vpn_cancel)
+            self.assertEqual(search.call_args.kwargs, {} if windows else {'allow_in_game': True})
             self.assertFalse(self.picker.vpn_testing)
             self.assertEqual(self.picker.vpn_report, report)
             self.assertFalse(self.picker.window.get_visible())
@@ -290,6 +295,17 @@ class SettingsUiTests(unittest.TestCase):
         self.assertEqual(page.language.get_active_id(), 'en')
         self.assertEqual(self.picker.preferences.data['language'], 'en')
         self.assertTrue(page.notice.get_visible())
+
+    def test_f9_controls_persist_and_failed_save_restores_scope(self):
+        page = self.picker.settings_page
+        page.f9_scope.set_active_id('game')
+        page.first_f9.set_active_id('full')
+        page.reopen_after_macro.set_active(False)
+        saved = Preferences(self.picker.preferences.path).data
+        self.assertEqual((saved['f9_scope'], saved['first_f9'], saved['reopen_after_macro']), ('game', 'full', False))
+        with patch.object(self.picker.preferences, 'set', side_effect=OSError('write failed')):
+            page.f9_scope.set_active_id('focused')
+        self.assertEqual(page.f9_scope.get_active_id(), 'game')
 
     def test_wheel_never_changes_number_dropdown_or_entry_and_scrolls_page(self):
         self.picker.leave_settings()

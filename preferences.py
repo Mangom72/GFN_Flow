@@ -3,8 +3,12 @@ import json
 import os
 from pathlib import Path
 
-DEFAULTS = dict(language='en', animations=True, size='standard')
+DEFAULTS = dict(language='en', animations=True, size='standard', f9_scope='always',
+                first_f9='login', reopen_after_macro=True)
 SIZES = dict(compact=(360, 480, 520), standard=(430, 520, 600), large=(600, 600, 680))
+F9_SCOPES = dict(always='Always', running='When GeForce NOW is running',
+                 focused='When GeForce NOW is focused', game='When a GFN game is running')
+FIRST_F9 = dict(login='Run login macro', full='Run full login macro', picker='Open macro picker')
 
 
 class Preferences:
@@ -23,7 +27,9 @@ class Preferences:
     @staticmethod
     def valid(key, value):
         return ((key == 'language' and value in ('en', 'ko'))
-                or (key == 'animations' and isinstance(value, bool))
+                or (key in ('animations', 'reopen_after_macro') and isinstance(value, bool))
+                or (key == 'f9_scope' and isinstance(value, str) and value in F9_SCOPES)
+                or (key == 'first_f9' and isinstance(value, str) and value in FIRST_F9)
                 or (key == 'size' and isinstance(value, str) and value in SIZES))
 
     def set(self, key, value):
