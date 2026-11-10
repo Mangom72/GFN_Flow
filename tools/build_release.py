@@ -9,11 +9,12 @@ from fetch_font import install as install_font
 ROOT = Path(__file__).resolve().parents[1]
 TEXT_FILES = (
     '.gitignore', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'UI_REVIEW.md',
-    'Install-Linux.sh', 'Install-Windows.ps1', 'auto-macro.service', 'popup_click.lua',
+    'Install-Linux.sh', 'Install-Windows.ps1', 'Install-Windows-Vpn.ps1', 'auto-macro.service', 'popup_click.lua',
     'ui_ko.json', 'ui_tokens.json', 'login/gfn_login.py', 'assets/filter.svg',
     'assets/input-event-codes.h', 'licenses/GPL-2.0-only.txt', 'licenses/Linux-syscall-note.txt',
     'platform/linux/macro-studio', 'platform/linux/gfn-login', 'platform/linux/gfn-anti-afk',
     'platform/linux/gfn-anti-afk.py', 'platform/linux/gfn-anti-afk.service',
+    'platform/windows/VpnService.cs',
     'tools/build_release.py', 'tools/fetch_font.py',
 )
 PRIVATE = re.compile(r'(?i)(?:[A-Z]:[\\/]Users[\\/]|/home' r'/[^$%/{]|'

@@ -47,7 +47,7 @@ class Manager:
         self.tabs = Gtk.Notebook()
         self.tabs.set_scrollable(True)
         self.tabs.get_style_context().add_class('studio-tabs')
-        self.picker.motion.notebook(self.tabs)
+        self.picker.motion.notebook(self.tabs, slide=True)
         self.views = Gtk.Stack()
         self.views.set_hhomogeneous(False)
         self.views.set_vhomogeneous(False)
@@ -178,14 +178,15 @@ class Manager:
                 'Visual Workflows': 'image-x-generic-symbolic',
                 'Login Credentials': 'dialog-password-symbolic',
                 'Blacklist': 'action-unavailable-symbolic'}[name]
-        tab = self.Gtk.Box(spacing=5)
+        tab = self.Gtk.Box()
         image = self.Gtk.Image.new_from_icon_name(icon, self.Gtk.IconSize.BUTTON)
         image.show()
         tab.pack_start(image, False, False, 0)
         tab.title = self.picker.label(name)
         tab.title.set_line_wrap(False)
-        tab.title.set_no_show_all(True)
-        tab.pack_start(tab.title, False, False, 0)
+        tab.title.set_margin_start(5)
+        tab.title_reveal = self.picker.motion.tab_title(tab.title)
+        tab.pack_start(tab.title_reveal, False, False, 0)
         tab.set_tooltip_text(name)
         tab.get_accessible().set_name(name)
         self.tabs.append_page(page, tab)
@@ -194,7 +195,7 @@ class Manager:
     def update_tab_titles(self, tabs, selected, _index):
         for index in range(tabs.get_n_pages()):
             page = tabs.get_nth_page(index)
-            tabs.get_tab_label(page).title.set_visible(page == selected)
+            tabs.get_tab_label(page).title_reveal.set_reveal_child(page == selected)
 
     def build_library(self):
         Gtk = self.Gtk

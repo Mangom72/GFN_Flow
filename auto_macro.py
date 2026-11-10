@@ -96,6 +96,7 @@ class Picker:
         self.popup_monitor = None
         self.last_popup_press = None
         self.restart_confirmation = None
+        self.login_choice = None
         self.tool_status = dict(vpn=False, afk=False) if preview else dict(vpn=None, afk=None)
         self.tool_polling = False
         self.width = width
@@ -243,7 +244,8 @@ class Picker:
     def windows_focus_out(self, *_):
         def check():
             if (self.window.get_visible() and not self.window.has_toplevel_focus()
-                    and self.Gtk.grab_get_current() is None):
+                    and self.Gtk.grab_get_current() is None
+                    and not (self.settings_page and self.settings_page.vpn.chooser)):
                 self.hide()
             return False
         self.GLib.timeout_add(150, check)
@@ -342,6 +344,7 @@ class Picker:
 
     def manage(self):
         self.dismiss_restart_confirmation()
+        self.dismiss_login_choice()
         if self.visual.active:
             self.visual.pause()
         if self.recorder:
@@ -423,6 +426,7 @@ class Picker:
                 if not current or session_key(*current) != session_key(*self.game):
                     self.game = None
                     self.message = 'Game session changed. Press F9 in the game to select it.'
+                    self.dismiss_login_choice()
                     self.render_if_visible()
         except Exception as exc:
             self.visual.stop()
@@ -481,6 +485,7 @@ class Picker:
 
     def hide(self):
         self.dismiss_restart_confirmation()
+        self.dismiss_login_choice()
         self.window.hide()
         return True
 
@@ -504,6 +509,7 @@ class Picker:
 
     def show_settings(self):
         self.dismiss_restart_confirmation()
+        self.dismiss_login_choice()
         if self.busy:
             return
         if not self.preview:
@@ -519,6 +525,7 @@ class Picker:
         self.prepare_ui(self.settings_page.root)
         self.settings_page.root.show_all()
         self.settings_page.vpn.refresh()
+        self.settings_page.vpn.load_profiles()
         self.stack.set_visible_child_name('settings')
         self.resize_view(self.library_height if self.settings_return == 'manager' else self.height)
         self.window.show_all()
@@ -533,8 +540,15 @@ class Picker:
         key = Gdk.keyval_name(event.keyval) or ''
         if self.restart_confirmation is not None:
             return self.restart_confirmation.key_handler(window, event)
+        if page == 'login-account' and key == 'Escape':
+            self.dismiss_login_choice(restore=True)
+            return True
         control = bool(event.state & Gdk.ModifierType.CONTROL_MASK)
         if page == 'settings' and key == 'Escape':
+            vpn = self.settings_page.vpn
+            if vpn.windows and vpn.country.menu.get_visible():
+                vpn.country.close()
+                return True
             self.leave_settings()
             return True
         if page != 'picker':
@@ -675,7 +689,7 @@ class Picker:
         return False
 
     def open(self, auto=True):
-        if auto and self.restart_confirmation is not None:
+        if auto and (self.restart_confirmation is not None or self.login_choice is not None):
             self.hide()
             return
         if self.vpn_testing:
@@ -743,10 +757,15 @@ class Picker:
             # Auto-input only when the detected game itself is focused.
             first_login = self.preferences.data['first_f9']
             if auto and first_login and self.game and active.address == self.game[0].address and not self.visual.active:
-                if self.library.auto_for(active.title) and self.sessions.claim_first(self.game):
-                    self.persist()
-                    self.run_login(full=False)
-                    return
+                automatic = self.library.auto_for(active.title)
+                if automatic and session_key(*self.game) not in self.sessions.attempted:
+                    if self.game[1] and self.library.login_choices(automatic):
+                        self.run_login(full=False)
+                        return
+                    if self.sessions.claim_first(self.game):
+                        self.persist()
+                        self.run_login(full=False)
+                        return
             if was_visible and auto:
                 self.hide()
                 return
@@ -762,7 +781,8 @@ class Picker:
                 if self.visual.owns(self.game):
                     self.message = 'Visual workflow paused. Open Visual Workflows in Macro Studio to resume or stop.'
             elif login.is_gfn_idle(active):
-                self.message = 'GFN launcher detected. Start a game or use Japan VPN below.'
+                self.message = ('GFN launcher detected. Start a game or use VPN below.' if WINDOWS
+                                else 'GFN launcher detected. Start a game or use Japan VPN below.')
             else:
                 self.message = 'Open a GFN game to run its macros, or open the library to create one.'
         except Exception as exc:
@@ -860,6 +880,8 @@ class Picker:
             return False
         self.tool_status = status
         self.update_tool_controls()
+        if self.settings_page:
+            self.settings_page.vpn.refresh_profile_controls()
         return False
 
     def update_tool_controls(self):
@@ -868,7 +890,8 @@ class Picker:
         self.tool_buttons['restart'].set_sensitive(self.can_restart_gfn())
         vpn, afk = self.tool_status['vpn'], self.tool_status['afk']
         button = self.tool_buttons['vpn']
-        title = 'Disconnect VPN' if vpn is True else 'Connect Japan VPN' if vpn is False else 'Checking VPN status…'
+        title = ('Disconnect VPN' if vpn is True else 'Checking VPN status…' if vpn is None
+                 else 'Connect VPN' if WINDOWS else 'Connect Japan VPN')
         button.get_accessible().set_name(self.tr(title))
         button.set_tooltip_text(self.tr(title) + ' · F10' if vpn is not None else self.tr('VPN status unavailable. Waiting for a fresh status check.'))
         button.set_sensitive(vpn is not None and not self.busy and not self.vpn_testing and not self.pending_record)
@@ -916,7 +939,9 @@ class Picker:
         for side in ('start', 'end', 'top', 'bottom'):
             getattr(content, 'set_margin_' + side)(12)
         title = self.label('Force restart GeForce NOW?', 'section')
-        detail = self.label('This turns on the Japan VPN, closes your GFN session and relaunches the app. Unsaved game progress may be lost.', 'muted')
+        detail = self.label(
+            'This connects the selected VPN, closes your GFN session and relaunches the app. Unsaved game progress may be lost.'
+            if WINDOWS else 'This turns on the Japan VPN, closes your GFN session and relaunches the app. Unsaved game progress may be lost.', 'muted')
         detail.set_max_width_chars(32 if self.width > 400 else 28)
         content.pack_start(title, False, False, 0)
         content.pack_start(detail, False, False, 0)
@@ -1021,7 +1046,7 @@ class Picker:
         if WINDOWS:
             from windows_vpn import status
             if status() is None:
-                self.vpn_test_state = {'error': 'Install WireGuard and configure the Japan tunnel first.'}
+                self.vpn_test_state = {'error': 'Import a WireGuard profile in VPN settings first.'}
                 self.refresh_vpn_search()
                 return
         if self.recorder or self.pending_record or self.pending or self.pending_capture:
@@ -1040,7 +1065,7 @@ class Picker:
                     stage=stage, index=index, total=total, server=server, rows=rows))
             try:
                 if WINDOWS:
-                    from windows_vpn_scan import scan
+                    from windows_vpn_broker import scan
                     report = scan(progress, self.vpn_cancel)
                 else:
                     report = optimize(profiles, progress, self.vpn_cancel, allow_in_game=True)
@@ -1095,6 +1120,7 @@ class Picker:
 
     def render(self):
         self.dismiss_restart_confirmation()
+        self.dismiss_login_choice()
         Gtk = self.Gtk
         if not self.preview:
             self.Layer.set_keyboard_mode(self.window, self.Layer.KeyboardMode.EXCLUSIVE)
@@ -1402,10 +1428,32 @@ class Picker:
         if macro:
             self.run_macro(macro, full)
 
-    def run_macro(self, macro, full=False):
+    def dismiss_login_choice(self, restore=False):
+        choice, self.login_choice = self.login_choice, None
+        if choice is None:
+            return
+        self.stack.set_visible_child_name(choice.previous)
+        choice.root.destroy()
+        if restore:
+            if choice.previous == 'picker' and not self.panel.get_children():
+                self.render()
+            else:
+                self.resize_view(self.library_height if choice.previous == 'manager' else self.height)
+                if choice.focus is not None and choice.focus.get_mapped():
+                    choice.focus.grab_focus()
+
+    def run_macro(self, macro, full=False, *, account_id=None):
         game = self.game
         if self.busy or self.vpn_testing or self.visual.active or macro['hidden'] or not macro['enabled']:
             return
+        if game and account_id is None:
+            choices = self.library.login_choices(macro)
+            if choices:
+                from ui_login_picker import LoginAccountChoice
+                self.dismiss_login_choice()
+                self.login_choice = LoginAccountChoice(self, macro, full, choices)
+                self.login_choice.show()
+                return
         if macro['kind'] == 'login' and self.sessions.claim_first(game):
             self.persist()
         runner = MacroRunner(self.library, lambda: self.verify_target(game),
@@ -1425,7 +1473,9 @@ class Picker:
                 if macro not in self.library.matching(active.title):
                     raise ValueError('This macro does not match the focused game.')
                 login.SESSION_GAME_TITLE = active.title
-                runner.run(macro, self.legacy_profiles, self.settings, full=full)
+                from macro_library import PRIMARY_ACCOUNT
+                selection = {'account_id': account_id} if account_id not in (None, PRIMARY_ACCOUNT) else {}
+                runner.run(macro, self.legacy_profiles, self.settings, full=full, **selection)
             except Cancelled:
                 status = 'Cancelled'
                 raise

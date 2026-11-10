@@ -131,6 +131,45 @@ class SettingsUiTests(unittest.TestCase):
         self.picker.settings_page.language.set_active_id('ko')
         self.assertIn('10초', panel.status.get_text())
 
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows VPN profiles')
+    def test_vpn_country_changes_do_not_select_a_new_profile_until_applied(self):
+        panel = self.picker.settings_page.vpn
+        panel.profile_done(b'p', {'active': ['nord', 'JP'],
+                                  'profiles': [['nord', 'JP'], ['proton', 'JP']],
+                                  'benchmark_id': None}, '')
+        panel.provider.set_active_id('proton')
+        self.assertIn('NordVPN · Japan', panel.profile_status.get_text())
+        self.assertTrue(panel.use_button.get_sensitive())
+        self.picker.tool_status['vpn'] = True
+        panel.refresh_profile_controls()
+        self.assertFalse(panel.use_button.get_sensitive())
+        self.assertTrue(panel.import_button.get_sensitive())
+        panel.country.set_active_id('US')
+        self.assertIn('Import the .conf for this country.', panel.profile_status.get_text())
+        panel.country.set_active_id('JP')
+        panel.profile_done(b'u', {'active': ['proton', 'JP'],
+                                  'profiles': [['nord', 'JP'], ['proton', 'JP']],
+                                  'benchmark_id': None}, '')
+        self.assertIn('Proton VPN (Free / Plus) · Japan', panel.profile_status.get_text())
+        self.assertFalse(panel.test_header.get_visible())
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows VPN country menu')
+    def test_country_menu_searches_codes_and_korean_and_only_changes_on_selection(self):
+        menu = self.picker.settings_page.vpn.country
+        menu.open()
+        menu.search.set_text('SG')
+        self.assertEqual(menu.rows.get_selected_row().code, 'SG')
+        self.assertEqual(menu.get_active_id(), 'JP')
+        menu.search.emit('activate')
+        self.assertEqual(menu.get_active_id(), 'SG')
+        self.picker.settings_page.language.set_active_id('ko')
+        menu.search.set_text('스위스')
+        self.assertEqual(menu.rows.get_selected_row().code, 'CH')
+        menu.search.set_text('no country')
+        self.assertIsNone(menu.rows.get_selected_row())
+        menu.search.emit('activate')
+        self.assertEqual(menu.get_active_id(), 'SG')
+
     def test_failed_scan_identifies_saved_results_and_translates_their_timestamp(self):
         from ui_qa import vpn_fixture
         report = vpn_fixture()
@@ -223,7 +262,7 @@ class SettingsUiTests(unittest.TestCase):
         field = self.manager.fields['name']
         self.picker.game = (login.Window('game', 'GeForce NOW Demo', 'GeForceNOW', 0, 0, 800, 600), self.profile)
         windows = sys.platform == 'win32'
-        backend = 'windows_vpn_scan.scan' if windows else 'vpn_servers.optimize'
+        backend = 'windows_vpn_broker.scan' if windows else 'vpn_servers.optimize'
         status = patch('windows_vpn.status', return_value=False) if windows else patch('auto_macro.WINDOWS', False)
         with status, patch.object(self.picker, 'preview', False), \
              patch.object(self.picker, 'refresh_tool_status'), \

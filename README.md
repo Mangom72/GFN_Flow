@@ -1,8 +1,8 @@
 # GFN Flow
 
-GFN Flow runs per-game macros in GeForce NOW on Windows and Linux with Hyprland. Record or edit an action sequence, replay it from the game picker, or assign a login macro to the first F9 press of a session. Visual workflows can use a matching image to decide when to run an action.
+GFN Flow runs per-game macros in GeForce NOW on Windows and Linux with Hyprland. Record or edit an action sequence, replay it from the game picker, or assign a login macro to the first F9 press of a session. A login macro can share its actions across several accounts for the same game.
 
-The distribution includes the application and installers. A fresh installation starts with an empty library and uses the platform's credential store when you register a login.
+Download the ZIP and its SHA-256 checksum from [GitHub Releases](https://github.com/Mangom72/GFN_Flow/releases/latest). The ZIP includes the application and installers. A fresh installation starts with an empty library and uses the platform's credential store when you register a login.
 
 ## Install
 
@@ -32,7 +32,7 @@ Open **GFN Flow** from Start. Add `-StartOnSignIn` to create a startup shortcut 
 
 ### Linux with Hyprland
 
-Install Python 3, GTK 3, PyGObject, the `GtkLayerShell` 0.1 typelib, and Adwaita icons. Configure `ydotool` and its daemon for playback. Login credentials need `secret-tool` and a running Secret Service. Recording needs Python `libevdev` and read access to input devices. Visual workflows need Pillow and NumPy.
+Install Python 3, GTK 3, PyGObject with Cairo support, the `GtkLayerShell` 0.1 typelib, and Adwaita icons. Configure `ydotool` and its daemon for playback. Login credentials need `secret-tool` and a running Secret Service. Recording needs Python `libevdev` and read access to input devices. Visual workflows need Pillow and NumPy.
 
 ```sh
 sh ./Install-Linux.sh
@@ -56,6 +56,8 @@ Existing `~/.config/auto-macro` libraries and legacy GFN login profiles are read
 
 In Macro Studio, **Ctrl+1–5** opens Library, History, Visual Workflows, Login Credentials, or Blacklist. **Esc** goes back. Deleting a detected game from **Blacklist** stops detection and keeps its macros. **Unblock and restore** puts the game back immediately. **Remove only** lets detection add it again when the game is next seen.
 
+For multiple accounts in one game, open **Login Credentials**, select the existing login macro, and choose **Add profile**. F9 and manual runs ask which account to use only when that macro has more than one. The **Page animations** setting controls the studio tab label and page transitions.
+
 ## Set F9 behavior
 
 Open **Settings → F9 behavior** to choose when F9 can open the picker.
@@ -70,11 +72,23 @@ Open **Settings → F9 behavior** to choose when F9 can open the picker.
 Turn on **Run login macro on first F9** to attempt the game's enabled login macro once per session while the game is focused. Turn it off to open the picker without logging in. **Reopen picker after normal macros** controls what happens after successful playback. F9 can still close an open picker or stop playback, and the app menu can open it directly.
 
 > [!NOTE]
-> Credentials registered in **Login Credentials** are stored in Windows Credential Manager or Linux Secret Service. Ordinary text actions are included in library exports, so use the saved credential actions for account names and passwords.
+> Credentials registered in **Login Credentials** are stored in Windows Credential Manager or Linux Secret Service. Additional account profiles are omitted from exports. Ordinary text actions are included, so use the saved credential actions for account names and passwords.
+
+## VPN on Windows
+
+The VPN is optional. Install [WireGuard for Windows](https://www.wireguard.com/install/). Then open PowerShell as administrator from the extracted release and run this once under the same Windows account that will use GFN Flow:
+
+```powershell
+.\Install-Windows-Vpn.ps1
+```
+
+Open **Settings → VPN**, choose a provider and country, and import its single-server WireGuard `.conf` file. Search the country menu by name or two-letter code. Select **Use profile** to assign it to F10. Disconnect before switching the active profile.
+
+Supported sources: [NordVPN](https://support.nordvpn.com/hc/en-us/articles/51470867535633), [Proton VPN Free or Plus](https://protonvpn.com/support/wireguard-configurations), [Mullvad](https://mullvad.net/en/help/wireguard-app-windows), and [Surfshark](https://support.surfshark.com/hc/en-us/articles/6586553044498). Available countries depend on your provider and plan. The VPN service applies the GFN routes and leaves the default internet route in place. Profile imports, F10, and the NordVPN Japan server comparison run without administrator prompts after setup.
 
 ## Optional controls
 
-- **F10** toggles Japan VPN. Windows requires [WireGuard](https://www.wireguard.com/install/) and your own single-peer configuration at `%APPDATA%\MacroStudioNative\vpn\gfn-jp.conf`. Starting or comparing tunnels can request administrator approval. Linux uses NetworkManager and, where configured, NordVPN.
+- **F10** toggles the selected VPN on Windows. Linux uses the existing Japan VPN setup with NetworkManager and, where configured, NordVPN.
 - **F12** toggles Windows Mobile Hotspot when a GeForce NOW window is focused. The tray menu also has a **Mobile Hotspot** command.
 
 See [LICENSE](LICENSE) for the MIT license and [third-party notices](THIRD_PARTY_NOTICES.md) for bundled components.

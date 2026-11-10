@@ -294,6 +294,12 @@ def store_secret(key, value):
         c.memset(blob, 0, len(raw))
 
 
+def delete_secret(key):
+    delete = api(advapi, 'CredDeleteW', w.BOOL, w.LPCWSTR, w.DWORD, w.DWORD)
+    if not delete(target_name(key), 1, 0) and c.get_last_error() != 1168:
+        raise login.LoginError('Could not remove the credential from Windows Credential Manager.')
+
+
 def configure():
     original_load_profiles = login.load_profiles
     def load_profiles():
@@ -321,6 +327,7 @@ def configure():
     login.type_text = type_text
     login.get_secret = get_secret
     login.store_secret = store_secret
+    login.delete_secret = delete_secret
     login.require_commands = lambda *_: None
     login.show_widget = lambda *_args, **_kwargs: None
     login.notify = lambda *_args, **_kwargs: None

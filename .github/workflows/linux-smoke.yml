@@ -16,10 +16,10 @@ jobs:
       - name: Install GTK test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb xauth python3-gi gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 adwaita-icon-theme librsvg2-common python3-pil python3-numpy linux-libc-dev
+          sudo apt-get install -y --no-install-recommends xvfb xauth python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-gtklayershell-0.1 adwaita-icon-theme librsvg2-common python3-pil python3-numpy linux-libc-dev
       - name: Check installer syntax and run offscreen GTK tests
         env:
           PYTHONPATH: .:tests
         run: |
           sh -n Install-Linux.sh
-          xvfb-run -a python3 -m unittest test_manager test_sessions test_game_catalog test_visual_ui test_inputs test_library_engine test_picker test_settings.PreferenceTests test_settings.SettingsUiTests.test_f9_controls_persist_and_failed_save_restores_scope
+          xvfb-run -a python3 -m unittest test_manager test_sessions test_game_catalog test_visual_ui test_inputs test_library_engine test_picker test_settings.PreferenceTests test_settings.SettingsUiTests.test_f9_controls_persist_and_failed_save_restores_scope test_popup_motion.MotionTests.test_real_notebook_navigation_finishes_with_full_opacity test_windows_vpn_profiles.WireGuardProfileTests

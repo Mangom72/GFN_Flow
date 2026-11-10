@@ -26,6 +26,7 @@
   "space_md": 12,
   "space_lg": 16,
   "motion_page_ms": 160,
+  "motion_tab_px": 22,
   "motion_hover_ms": 100,
   "popup_gap": 8,
   "screen_inset": 12,

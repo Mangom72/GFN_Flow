@@ -100,8 +100,10 @@ class ManagerTests(unittest.TestCase):
             event = SimpleNamespace(keyval=Gdk.KEY_1 + index, state=Gdk.ModifierType.CONTROL_MASK)
             self.assertTrue(self.manager.keyboard(self.manager.window, event))
             self.assertEqual(tabs.get_current_page(), index)
-            self.assertEqual([tabs.get_tab_label(tabs.get_nth_page(i)).title.get_visible() for i in range(5)],
+            self.assertEqual([tabs.get_tab_label(tabs.get_nth_page(i)).title_reveal.get_reveal_child() for i in range(5)],
                              [i == index for i in range(5)])
+            selected = tabs.get_tab_label(tabs.get_nth_page(index))
+            self.assertTrue(selected.title.get_visible() and selected.title.get_child_visible())
 
     def test_login_tab_registers_credentials_without_detaching_legacy_actions(self):
         macro = self.library.macros[0]
@@ -127,6 +129,45 @@ class ManagerTests(unittest.TestCase):
         page.account.set_text('replacement-account')
         self.click('Save credentials')
         self.assertEqual(self.library.auto_for('Demo')['credential_key'], profile.credential_key)
+
+    def test_login_tab_adds_edits_and_removes_a_second_account(self):
+        self.manager.tabs.set_current_page(3)
+        page = self.manager.login_page
+        macro = self.library.macros[0]
+        self.assertFalse(page.profile_field.get_visible())
+        self.click('Add profile')
+        self.assertTrue(page.alias_field.get_visible())
+        self.assertEqual(page.account.get_text(), '')
+        page.alias.set_text('Weekend')
+        page.account.set_text('second-id')
+        page.password.set_text('second-password')
+        self.click('Save credentials')
+        choice = page.profile.get_active_id()
+        self.assertTrue(page.profile_field.get_visible())
+        self.assertEqual(page.account.get_text(), 'second-id')
+        page.reload_profiles(None)
+        self.assertEqual(page.profile.get_active_id(), 'primary')
+        self.assertEqual(page.account.get_text(), self.profile.user)
+        page.profile.set_active_id(choice)
+        self.assertEqual(page.password.get_text(), '')
+        self.assertEqual(self.library.get(macro['id'])['steps'], macro['steps'])
+        profile = self.library.resolved_profile(self.library.get(macro['id']), [self.profile], account_id=choice)
+        self.assertEqual(login.get_secret(profile.credential_key), 'second-password')
+        self.assertEqual(self.library.resolved_profile(self.library.get(macro['id']), [self.profile]).user, self.profile.user)
+        exported = Path(self.tmp.name) / 'export.json'
+        self.library.export_file(exported)
+        self.assertNotIn('Weekend', exported.read_text(encoding='utf-8'))
+        self.assertNotIn('second-id', self.library.path.read_text(encoding='utf-8'))
+        page.alias.set_text('Alt')
+        with patch.object(login, 'delete_secret', side_effect=self.secrets.pop):
+            self.click('Save credentials')
+            self.assertEqual(self.library.get(macro['id'])['login_accounts'][0]['label'], 'Alt')
+            self.click('Remove profile')
+            self.assertTrue(page.profile_field.get_visible())
+            self.click('Remove profile')
+        self.assertFalse(page.profile_field.get_visible())
+        self.assertEqual(page.account.get_text(), self.profile.user)
+        self.assertNotIn(profile.credential_key, self.secrets)
 
     def test_delete_in_context_editor_never_deletes_the_library_selection(self):
         from gi.repository import Gdk

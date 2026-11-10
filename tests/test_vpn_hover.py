@@ -1,6 +1,7 @@
 """Fresh hover measurements, cancellation, and hidden legacy VPN notices."""
 import json
 from pathlib import Path
+import sys
 import tempfile
 import threading
 import unittest
@@ -117,7 +118,7 @@ class HoverUiTests(unittest.TestCase):
         self.assertIn('GFN 지연 시간: 29 ms', self.tooltip())
         self.picker.localizer.set_language('en')
         self.picker.update_tool_controls()
-        self.assertIn('Connect Japan VPN', self.tooltip())
+        self.assertIn('Connect VPN' if sys.platform == 'win32' else 'Connect Japan VPN', self.tooltip())
         self.assertIn('29 ms', self.tooltip())
 
     def test_unmap_destroy_and_click_discard_pending_measurements(self):

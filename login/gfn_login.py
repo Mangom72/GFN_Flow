@@ -327,6 +327,11 @@ def store_secret(key: str, password: str) -> None:
         raise LoginError(detail)
 
 
+def delete_secret(key: str) -> None:
+    require_commands("secret-tool")
+    run(["secret-tool", "clear", "application", APP_ID, "account", key], check=False)
+
+
 def credential_dialog(profiles: list[Profile]) -> None:
     require_commands("fuzzel", "zenity")
     keys = list(dict.fromkeys(profile.credential_key for profile in profiles))

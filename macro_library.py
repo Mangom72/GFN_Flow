@@ -20,6 +20,8 @@ if sys.platform == 'win32':
 TYPES = (('login', 'Login Macros'), ('normal', 'Normal Macros'))
 VERSION = 2
 BUTTONS = ('Left', 'Right', 'Middle', 'Side', 'Extra', 'Forward', 'Back', 'Task')
+PRIMARY_ACCOUNT = 'primary'
+MAX_EXTRA_ACCOUNTS = 15
 
 
 def read_library(data):
@@ -163,6 +165,21 @@ def validate(macro):
             raise ValueError(f'{field} must be text.')
     if 'password' in macro:
         raise ValueError('Passwords belong in the keyring, never in macro files.')
+    accounts = macro.get('login_accounts', [])
+    if not isinstance(accounts, list) or len(accounts) > MAX_EXTRA_ACCOUNTS:
+        raise ValueError('Too many login profiles.')
+    ids, names = set(), set()
+    for entry in accounts:
+        if (not isinstance(entry, dict) or entry.keys() != {'id', 'label', 'account_key', 'credential_key'}
+                or any(not isinstance(value, str) for value in entry.values())
+                or not re.fullmatch(r'[a-f0-9]{32}', entry['id'])
+                or not 1 <= len(entry['label'].strip()) <= 40 or not entry['label'].isprintable()
+                or not re.fullmatch(r'auto-macro-[a-f0-9]{32}-account', entry['account_key'])
+                or not re.fullmatch(r'auto-macro-[a-f0-9]{32}-password', entry['credential_key'])
+                or entry['id'] in ids or entry['label'].casefold() in names):
+            raise ValueError('Invalid login profile.')
+        ids.add(entry['id'])
+        names.add(entry['label'].casefold())
     if macro.get('auto') and (macro['kind'] != 'login' or macro['repeat'] != 1):
         raise ValueError('First-F9 auto login requires a login macro with one repeat.')
     limit = macro.get('login_limit', 0)
@@ -415,6 +432,7 @@ class MacroLibrary:
 
     def duplicate(self, identity):
         macro = copy.deepcopy(self.get(identity))
+        macro.pop('login_accounts', None)
         macro.update(id=uuid.uuid4().hex, name=macro['name'] + ' copy', auto=False, hidden=False)
         return self.put(macro)
 
@@ -452,7 +470,100 @@ class MacroLibrary:
             self.macros[index] = macro
             raise
 
-    def resolved_profile(self, macro, profiles, with_account=True):
+    def login_choices(self, macro):
+        if macro['kind'] != 'login' or not macro.get('login_accounts'):
+            return []
+        return [(PRIMARY_ACCOUNT, 'Primary account'),
+                *((entry['id'], entry['label']) for entry in macro['login_accounts'])]
+
+    @staticmethod
+    def primary_registered(macro, profiles):
+        return bool(macro.get('account_key') or macro.get('user')
+                    or any(profile.name == macro['source_profile'] and profile.user for profile in profiles))
+
+    def save_extra_account(self, macro_id, account_id, label, account, password):
+        macro = self.get(macro_id)
+        if not macro or macro['kind'] != 'login':
+            raise ValueError('Choose a login macro.')
+        entries = macro.get('login_accounts', [])
+        previous = next((entry for entry in entries if entry['id'] == account_id), None)
+        if account_id and previous is None:
+            raise ValueError('This login profile is no longer available.')
+        if not previous and not self.primary_registered(macro, self.source_profiles):
+            raise ValueError('Save the primary account first.')
+        if not previous and len(entries) >= MAX_EXTRA_ACCOUNTS:
+            raise ValueError('Too many login profiles.')
+        if not label or len(label) > 40 or not label.isprintable():
+            raise ValueError('Enter a profile name of up to 40 characters.')
+        if any(entry is not previous and entry['label'].casefold() == label.casefold() for entry in entries):
+            raise ValueError('That profile name is already in use.')
+        if not account:
+            raise ValueError('Enter a login ID or email.')
+        if not password:
+            try:
+                if previous is None or not login.get_secret(previous['credential_key']):
+                    raise login.LoginError()
+            except (login.LoginError, KeyError):
+                raise ValueError('Enter a password to register these credentials.') from None
+        created = []
+        try:
+            account_key = store_login_secret('account', account)
+            created.append(account_key)
+            password_key = store_login_secret('password', password) if password else previous['credential_key']
+            if password:
+                created.append(password_key)
+            entry = dict(id=account_id or uuid.uuid4().hex, label=label,
+                         account_key=account_key, credential_key=password_key)
+            updated = [entry if old is previous else old for old in entries] if previous else [*entries, entry]
+            self.update_login_accounts(macro, updated)
+        except (OSError, ValueError, login.LoginError):
+            self.clear_login_secrets(created)
+            raise
+        if previous:
+            self.clear_login_secrets(key for key in (previous['account_key'], previous['credential_key'])
+                                     if key not in (account_key, password_key))
+        return entry['id']
+
+    def remove_extra_account(self, macro_id, account_id):
+        macro = self.get(macro_id)
+        entries = macro.get('login_accounts', []) if macro else []
+        previous = next((entry for entry in entries if entry['id'] == account_id), None)
+        if previous is None:
+            raise ValueError('This login profile is no longer available.')
+        self.update_login_accounts(macro, [entry for entry in entries if entry is not previous])
+        self.clear_login_secrets((previous['account_key'], previous['credential_key']))
+
+    def update_login_accounts(self, macro, entries):
+        updated = dict(macro, login_accounts=entries)
+        validate(updated)
+        index = self.macros.index(macro)
+        self.macros[index] = updated
+        try:
+            self.save()
+        except OSError:
+            self.macros[index] = macro
+            raise
+
+    def clear_login_secrets(self, keys):
+        for key in keys:
+            if any(key in (macro.get('account_key'), macro.get('credential_key'))
+                   or any(key in (entry['account_key'], entry['credential_key'])
+                          for entry in macro.get('login_accounts', ()))
+                   for macro in [*self.macros, *self.data['trash']]):
+                continue
+            try:
+                login.delete_secret(key)
+            except (OSError, login.LoginError):
+                pass
+
+    def resolved_profile(self, macro, profiles, with_account=True, account_id=None):
+        if account_id not in (None, PRIMARY_ACCOUNT):
+            entry = next((item for item in macro.get('login_accounts', []) if item['id'] == account_id), None)
+            if macro['kind'] != 'login' or entry is None:
+                raise ValueError('This login profile is no longer available.')
+            base = self.resolved_profile(macro, profiles, with_account=False)
+            return replace(base, user=login.get_secret(entry['account_key']) if with_account else '',
+                           credential_key=entry['credential_key'])
         source = next((p for p in profiles if p.name == macro['source_profile']), None)
         if macro['source_profile']:
             if not source:
@@ -498,6 +609,7 @@ class MacroLibrary:
             # Export actions and keyring references, never account names.
             macro['user'] = ''
             macro['account_key'] = ''
+            macro.pop('login_accounts', None)
         self.atomic_write(Path(path), dict(version=VERSION, macros=macros, trash=[], games=self.games))
 
     def import_file(self, path):
@@ -506,6 +618,7 @@ class MacroLibrary:
         for macro in incoming:
             validate(macro)
         for macro in incoming:
+            macro.pop('login_accounts', None)
             macro.update(id=uuid.uuid4().hex, auto=False)
             self.macros.append(macro)
         for game in data.get('games', []):

@@ -9,7 +9,7 @@ import time
 from detection import login
 from input_activity import macro_input_active
 from windows_host import RUNTIME, STATE, file_lock
-from windows_input import GFN_EXE, active_window, all_windows, api, cursor_position, move_cursor, user
+from windows_input import GFN_EXE, active_window, all_windows, api, cursor_position, gfn_process_running, move_cursor, user
 
 _afk_due = None
 _watching_vpn = False
@@ -83,8 +83,8 @@ def restart_gfn():
             hwnd = int(window.address.split('.')[0], 16)
             if not post(hwnd, 0x10, 0, 0):
                 raise ValueError('GeForce NOW could not be closed.')
-        deadline = time.monotonic() + 8
-        while all_windows():
+        deadline = time.monotonic() + 15
+        while gfn_process_running():
             if time.monotonic() >= deadline:
                 raise ValueError('GeForce NOW did not close. Restart was cancelled.')
             time.sleep(.15)
@@ -118,7 +118,8 @@ def monitor_vpn(picker, window):
     global _watching_vpn
     from tool_status import vpn_lock
     from vpn_servers import load_report
-    from windows_vpn import MANAGED, network_identity, service, status, wait_state
+    from windows_vpn import network_identity, set_connected, status
+    from windows_vpn_broker import benchmark_matches
 
     def post(message):
         def update():
@@ -134,7 +135,8 @@ def monitor_vpn(picker, window):
     try:
         report = load_report()
         if (not status() or not login.direct_connection_is_fastest(report)
-                or not 0 <= time.time() - report['tested_at'] <= 86400 or not same(report)):
+                or not 0 <= time.time() - report['tested_at'] <= 86400
+                or not benchmark_matches(report) or not same(report)):
             return
         post('Without VPN is faster · disconnecting in 10s')
         deadline = time.monotonic() + 10
@@ -147,11 +149,10 @@ def monitor_vpn(picker, window):
         with vpn_lock():
             current = active_window()
             if ((current.address, current.title) != (window.address, window.title)
-                    or not same(report) or not status() or macro_input_active()):
+                    or not same(report) or not status() or not benchmark_matches(report) or macro_input_active()):
                 return
             # A background countdown never prompts for elevation during a game.
-            service('stop')
-            wait_state(MANAGED, (0, 1))
+            set_connected(False)
         post('Disconnected · without VPN was faster')
     except PermissionError:
         post('Automatic VPN disconnect needs Windows service permission.')

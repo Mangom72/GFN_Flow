@@ -34,9 +34,9 @@ class MacroRunner:
                 raise Cancelled('Playback cancelled.')
             remaining -= chunk
 
-    def run(self, macro, profiles, settings, full=False):
+    def run(self, macro, profiles, settings, full=False, account_id=None):
         try:
-            return self.execute(macro, profiles, settings, full)
+            return self.execute(macro, profiles, settings, full, account_id)
         finally:
             self.release_inputs()
 
@@ -60,13 +60,15 @@ class MacroRunner:
         if failure:
             raise failure
 
-    def execute(self, macro, profiles, settings, full=False):
+    def execute(self, macro, profiles, settings, full=False, account_id=None):
         validate(macro)
         steps = macro['steps']
         if macro['kind'] == 'login' and not full and macro.get('login_limit', 0):
             steps = steps[:macro['login_limit']]
+        options = {'account_id': account_id} if account_id else {}
         profile = self.library.resolved_profile(macro, profiles,
-                                                with_account=bool(macro['source_profile']) or 'id' in steps)
+                                                with_account=bool(macro['source_profile']) or 'id' in steps,
+                                                **options)
         self.check()
         password = None
         if sys.platform == 'win32' and not macro['source_profile']:

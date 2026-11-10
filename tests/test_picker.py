@@ -191,6 +191,35 @@ class PickerTests(unittest.TestCase):
             self.picker.open()
             run.assert_called_once()
 
+    def test_first_f9_asks_only_with_multiple_accounts_and_cancel_does_not_consume_it(self):
+        from detection import session_key
+        secrets = {}
+        library = self.picker.library
+        identity = library.macros[0]['id']
+        with (patch.object(login, 'store_secret', side_effect=secrets.__setitem__),
+              patch.object(login, 'get_secret', side_effect=secrets.__getitem__),
+              patch.object(login, 'active_window', return_value=self.active),
+              patch.object(login, 'execute_profile') as execute):
+            library.save_login_credentials(identity, self.picker.legacy_profiles, 'first-id', 'first-password')
+            self.assertFalse(library.login_choices(library.get(identity)))
+            second = library.save_extra_account(identity, None, 'Alt', 'second-id', 'second-password')
+            self.picker.launch = lambda work, _, **kwargs: work()
+            self.picker.open()
+            key = session_key(*self.picker.game)
+            self.assertIsNotNone(self.picker.login_choice)
+            self.assertNotIn(key, self.picker.sessions.attempted)
+            execute.assert_not_called()
+            self.picker.login_choice.cancel.clicked()
+            self.assertIsNone(self.picker.login_choice)
+            self.assertNotIn(key, self.picker.sessions.attempted)
+            self.picker.open()
+            self.picker.login_choice.buttons[second].clicked()
+            self.assertIsNone(self.picker.login_choice)
+            self.assertIn(key, self.picker.sessions.attempted)
+            profiles = [value for value in execute.call_args.args if isinstance(value, login.Profile)]
+            self.assertEqual([profile.user for profile in profiles], ['second-id'])
+            self.assertEqual(secrets[profiles[0].credential_key], 'second-password')
+
     def test_original_input_worker_pinned_to_session(self):
         self.picker.game = (self.active, login.detect_profile(self.picker.profiles, self.active.title))
         self.picker.launch = lambda work, _, **kwargs: work()

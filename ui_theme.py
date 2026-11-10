@@ -43,7 +43,7 @@ window.recording-window { background: transparent; }
 textview, textview text { color: %(text)s; background: %(surface)s; }
 .section { font-size: 12px; font-weight: 600; color: %(muted)s; padding: 4px 0; }
 .shortcut-key { min-width: 36px; font-weight: 600; color: %(muted)s; }
-.reduced-motion button { transition-duration: 0ms; }
+.reduced-motion button, .reduced-motion notebook > header tabs tab { transition-duration: 0ms; }
 button { background-image: none; background: transparent; color: %(text)s; border: 1px solid transparent;
   border-radius: 5px; padding: 5px 7px; min-width: 16px; min-height: 16px; box-shadow: none; font-weight: 500;
   transition: background-color %(motion_hover_ms)sms ease-out, border-color %(motion_hover_ms)sms ease-out, color %(motion_hover_ms)sms ease-out; }
@@ -73,7 +73,9 @@ notebook > header tabs tab { min-height: 24px; margin: 0 10px 0 0; padding: 4px 
   transition: color %(motion_hover_ms)sms ease-out, border-color %(motion_hover_ms)sms ease-out; }
 notebook > header tabs tab:checked { color: %(text)s; border-bottom-color: %(accent)s; }
 .studio-tabs > header tabs tab { margin-right: 4px; padding: 4px 5px; min-width: 16px; min-height: 24px;
-  box-shadow: none; background-image: none; }
+  box-shadow: none; background-image: none; border-radius: 5px 5px 0 0;
+  transition: color %(motion_page_ms)sms ease-out, border-color %(motion_page_ms)sms ease-out, background-color %(motion_page_ms)sms ease-out; }
+.studio-tabs > header tabs tab:checked { background-color: %(raised)s; }
 .studio-tabs > header tabs tab:focus { outline: 1px solid %(accent)s; outline-offset: -1px; }
 .studio-tabs > header tabs tab label { font-weight: 600; }
 notebook > header tabs tab:hover { color: %(text)s; }
