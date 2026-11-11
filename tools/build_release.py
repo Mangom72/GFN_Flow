@@ -15,8 +15,10 @@ TEXT_FILES = (
     'platform/linux/macro-studio', 'platform/linux/gfn-login', 'platform/linux/gfn-anti-afk',
     'platform/linux/gfn-anti-afk.py', 'platform/linux/gfn-anti-afk.service',
     'platform/windows/VpnService.cs',
-    'tools/build_release.py', 'tools/fetch_font.py',
+    'tools/build_release.py', 'tools/fetch_font.py', 'tools/capture_readme.py',
+    'docs/README.en.md', 'docs/INSTALL.md', 'docs/INSTALL.en.md',
 )
+README_IMAGES = ('editor.png', 'studio.png', 'accounts.png', 'vpn.png', 'tabs.gif')
 PRIVATE = re.compile(r'(?i)(?:[A-Z]:[\\/]Users[\\/]|/home' r'/[^$%/{]|'
                      r'-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|'
                      r'^\s*(?:PrivateKey|PresharedKey)\s*=\s*[A-Za-z0-9+/]{43}=|'
@@ -33,8 +35,7 @@ def checked_text(path):
 def build(stage, archive):
     stage.mkdir(parents=True, exist_ok=False)
     files = {path: ROOT / path for path in TEXT_FILES}
-    readme = ROOT / 'README-release.md'
-    files['README.md'] = readme if readme.exists() else ROOT / 'README.md'
+    files['README.md'] = ROOT / 'README.md'
     for path in (*ROOT.glob('*.py'), *ROOT.glob('*.pyw'), *(ROOT / 'tests').glob('test_*.py')):
         if path.name not in ('windows_migrate.py', 'ui_qa.py'):
             files[path.relative_to(ROOT).as_posix()] = path
@@ -42,6 +43,10 @@ def build(stage, archive):
         target = stage / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(checked_text(source))
+    images = stage / 'docs/images'
+    images.mkdir()
+    for name in README_IMAGES:
+        (images / name).write_bytes((ROOT / 'docs/images' / name).read_bytes())
     font_dir = stage / 'assets/fonts'
     font_dir.mkdir()
     for name in ('PretendardVariable.ttf', 'Pretendard-OFL.txt'):
